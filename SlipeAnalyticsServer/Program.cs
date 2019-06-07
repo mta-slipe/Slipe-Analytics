@@ -31,28 +31,38 @@ namespace SlipeAnalyticsServer
             {
                 var context = await listener.GetContextAsync();
 
-                StreamReader reader = new StreamReader(context.Request.InputStream);
-                string requestBody = (await reader.ReadToEndAsync());
-
-                JsonDocument json = JsonDocument.Parse(requestBody);
-                string project = json.RootElement.GetProperty("project").GetString();
-                string command = json.RootElement.GetProperty("command").GetString();
-                Console.WriteLine(command);
-
-                var sha = System.Security.Cryptography.SHA256.Create();
-                byte[] ipHash = sha.ComputeHash(Encoding.UTF8.GetBytes(context.Request.RemoteEndPoint.Address.ToString()));
-                using (AnalyticsContext db = new AnalyticsContext())
+                try
                 {
-                    db.Entries.Add(new AnalyticsEntry()
+                    StreamReader reader = new StreamReader(context.Request.InputStream);
+                    string requestBody = (await reader.ReadToEndAsync());
+
+                    JsonDocument json = JsonDocument.Parse(requestBody);
+                    string project = json.RootElement.GetProperty("project").GetString();
+                    string command = json.RootElement.GetProperty("command").GetString();
+                    Console.WriteLine(command);
+
+                    var sha = System.Security.Cryptography.SHA256.Create();
+                    byte[] ipHash = sha.ComputeHash(Encoding.UTF8.GetBytes(context.Request.RemoteEndPoint.Address.ToString()));
+                    using (AnalyticsContext db = new AnalyticsContext())
                     {
-                        Project = project,
-                        Command = command,
-                        IpHash = Convert.ToBase64String(ipHash),
-                        Timestamp = DateTime.UtcNow
-                    });
-                    db.SaveChanges();
+                        db.Entries.Add(new AnalyticsEntry()
+                        {
+                            Project = project,
+                            Command = command,
+                            IpHash = Convert.ToBase64String(ipHash),
+                            Timestamp = DateTime.UtcNow
+                        });
+                        db.SaveChanges();
+                    }
+                    context.Response.Close();
                 }
-                context.Response.Close();
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
+                    Console.WriteLine(e.StackTrace);
+                    context.Response.StatusCode = 500;
+                    context.Response.Close();
+                }
             }
         }
     }
